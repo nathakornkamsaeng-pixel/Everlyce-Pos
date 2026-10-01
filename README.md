@@ -9,6 +9,10 @@ account to create.
 - **No sign-up** — you clone it, you run it, there is nothing to register for
 - **No keys** — start the process and it is trading
 
+Prefer someone else to run it? There is a hosted version at
+[pos.everlyce.com](https://pos.everlyce.com). This repository is the
+self-hosted build: one shop per install, run by you.
+
 ## Features
 
 Point of sale, table management, QR ordering from the guest's phone, kitchen
@@ -24,7 +28,7 @@ sessions and receipts in Thai and English.
 ## Install
 
 ```bash
-git clone https://github.com/YOUR-GITHUB-ACCOUNT/pos.git
+git clone https://github.com/nathakornkamsaeng-pixel/pos.git
 cd pos
 npm install
 npm run build
