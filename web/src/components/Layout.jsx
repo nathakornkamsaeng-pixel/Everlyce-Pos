@@ -77,16 +77,24 @@ export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const { t } = useI18n();
   const { name: brandName } = useBranding();
-  const { slug } = useStore();
+  const { slug, base } = useStore();
   const nav = useNavigate();
   const loc = useLocation();
   const isAdmin = user?.role === 'admin';
   const isCashier = user?.role === 'cashier';
 
-  // Every internal link and redirect stays inside this store's URL space.
-  const go = (path) => nav(storePath(slug, path));
-  const here = (path) => loc.pathname === storePath(slug, path) || loc.pathname === `${storePath(slug, path)}/`;
-  const tail = loc.pathname.startsWith(`/${slug}`) ? loc.pathname.slice(slug.length + 1) || '/' : loc.pathname;
+  // Every internal link and redirect stays inside this shop's URL space, which on
+  // a single-shop install is the root of the host. base carries the old prefix
+  // only when the page was reached through it, so an old link keeps working and
+  // keeps its own shape.
+  const go = (path) => nav(storePath(slug, path, base));
+  const at = (path) => storePath(slug, path, base);
+  const here = (path) => loc.pathname === at(path) || loc.pathname === `${at(path)}/`;
+  // The part of the path after the prefix, for the breadcrumb. With no prefix
+  // this is the path itself, which is why the slice is guarded rather than
+  // assumed: `/${slug}` on an empty slug would slice to '' and show nothing.
+  const prefixed = Boolean(base) && loc.pathname.startsWith(base);
+  const tail = prefixed ? loc.pathname.slice(base.length) || '/' : loc.pathname;
 
   const [mode, setMode] = useState(() => {
     if (isCashier) return 'cashier';
@@ -228,7 +236,7 @@ export default function Layout({ children }) {
               <React.Fragment key={g.group}>
                 <div className="nav-group">{t(g.group)}</div>
                 {g.items.map((n) => (
-                  <NavLink key={n.to} to={storePath(slug, n.to)} end={n.end} onClick={() => setDrawer(false)}>
+                  <NavLink key={n.to} to={at(n.to)} end={n.end} onClick={() => setDrawer(false)}>
                     <n.Icon />
                     {t(n.label)}
                   </NavLink>

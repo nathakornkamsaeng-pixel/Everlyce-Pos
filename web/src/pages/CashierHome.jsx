@@ -15,7 +15,7 @@ const BUTTONS = [
 
 export default function CashierHome() {
   const nav = useNavigate();
-  const { slug } = useStore();
+  const { slug, base } = useStore();
   const { openMenu } = useUiMode();
   const { t } = useI18n();
 
@@ -27,7 +27,7 @@ export default function CashierHome() {
             key={b.label}
             type="button"
             className={`home-btn ${b.all ? 'all' : ''}`}
-            onClick={() => (b.all ? openMenu() : nav(storePath(slug, b.to)))}
+            onClick={() => (b.all ? openMenu() : nav(storePath(slug, b.to, base)))}
           >
             <span className="home-icon"><b.Icon size={40} strokeWidth={1.7} /></span>
             <span className="home-text">

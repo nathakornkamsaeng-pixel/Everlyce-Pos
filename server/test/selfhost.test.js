@@ -122,11 +122,17 @@ async function waitUp() {
   ok('it has the name that was given', setup.data.store.name === 'Siam Kitchen', setup.data.store.name);
   ok('and the address that was asked for', setup.data.store.slug === 'siamkitchen', setup.data.store.slug);
   ok('the owner account is named', setup.data.owner && setup.data.owner.username === 'owner', setup.data.owner);
-  ok('and it points at the sign-in page', setup.data.signInPath === '/siamkitchen/login', setup.data.signInPath);
+  // The shop is the root of the host, so /login is the address. The old
+  // prefixed form still resolves, but it is not what anyone should be handed.
+  ok('and it points at /login, with no shop name in it', setup.data.signInPath === '/login', setup.data.signInPath);
+  const cfgMid = await call('GET', '/api/platform/config');
+  ok('and the app can learn the shop from the server rather than the URL',
+    cfgMid.data.storeSlug === 'siamkitchen', cfgMid.data.storeSlug);
 
   console.log('\n== nothing about setup waits for an email ==');
   const cfgAfter = await call('GET', '/api/platform/config');
   ok('the install no longer needs setting up', cfgAfter.data.setupRequired === false, cfgAfter.data);
+  ok('and the shop is published for the app to find at the root', cfgAfter.data.storeSlug === 'siamkitchen', cfgAfter.data.storeSlug);
   ok('and no mailer was ever needed, so nothing is logged about one',
     !/MAIL:|SMTP/i.test(server.log), server.log.split('\n').filter((l) => /MAIL:|SMTP/i.test(l)));
 
@@ -139,6 +145,19 @@ async function waitUp() {
   const T = login.data.token;
   ok('and the shop API works immediately', (await call('GET', '/api/settings', { token: T, store: 'siamkitchen' })).status === 200);
   ok('tables are readable', (await call('GET', '/api/tables', { token: T, store: 'siamkitchen' })).status === 200);
+
+  console.log('\n== the shop is at the root of the host ==');
+  // Served, not redirected. These used to be sent to /{shop}/..., which is how a
+  // single-shop install worked before the app was mounted at the root; redirecting
+  // them now would bounce a guest to a path the app no longer routes.
+  for (const page of ['/login', '/orders', '/tables', '/checkout', '/kds', '/settings']) {
+    const r = await call('GET', page, { store: null });
+    ok(`${page} is served where it is asked for`, r.status === 200, r.status);
+  }
+  // Every QR code printed before this change carries the shop's name, and there
+  // are hundreds of them on tables.
+  const prefixed = await call('GET', '/shop/siamkitchen/login', { store: null });
+  ok('and the old prefixed form still works', prefixed.status === 200, prefixed.status);
 
   console.log('\n== setup is one-shot ==');
   // A fully valid body, so the refusal can only be about the install already

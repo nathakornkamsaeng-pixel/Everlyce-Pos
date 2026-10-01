@@ -43,9 +43,12 @@ import CashierHome from './pages/CashierHome';
 
 function Guard({ children, roles }) {
   const { user, ready } = useAuth();
-  const { slug } = useStore();
+  const { base } = useStore();
   const loc = useLocation();
-  const home = slug ? `/${slug}` : '/';
+  // The shop is at the root of the host, so home is / and the redirects below are
+  // /login, /kds, /display. base is empty here and carries the old prefix only
+  // for someone following a link that still has it.
+  const home = base || '/';
   if (!ready) {
     return (
       <div className="loading">
@@ -53,9 +56,9 @@ function Guard({ children, roles }) {
       </div>
     );
   }
-  if (!user) return <Navigate to={storePath(slug, '/login')} replace />;
-  if (user.role === 'kds' && !loc.pathname.endsWith('/kds')) return <Navigate to={storePath(slug, '/kds')} replace />;
-  if (user.role === 'display' && !loc.pathname.endsWith('/display')) return <Navigate to={storePath(slug, '/display')} replace />;
+  if (!user) return <Navigate to={storePath(null, '/login', base)} replace />;
+  if (user.role === 'kds' && !loc.pathname.endsWith('/kds')) return <Navigate to={storePath(null, '/kds', base)} replace />;
+  if (user.role === 'display' && !loc.pathname.endsWith('/display')) return <Navigate to={storePath(null, '/display', base)} replace />;
   if (roles && !roles.includes(user.role)) return <Navigate to={home} replace />;
   return children;
 }
@@ -90,13 +93,15 @@ function Shell() {
   );
 }
 
-// The whole existing app, mounted under the store's own URL.
+// The app itself, mounted at the root of the host.
 //
-// Sign-in and activation must work for a store that is not live yet, otherwise
-// an owner who has just registered has no way in and nowhere to type their key.
-// Only the rest of the app is gated on the store being active.
+// Sign-in has to work for a shop that is not live, so a paused shop still has a
+// way in and a way back. There is no activation screen: this install has no keys
+// and nothing to redeem.
 function StoreApp() {
-  const { slug, status, ready, contactEmail, daysLeft, onTrial, trialEnded } = useStore();
+  // Only status is read here. The trial fields went with the trial, and the
+  // contact address with the key workflow that pointed people at it.
+  const { status, ready } = useStore();
   if (!ready) {
     return (
       <div className="loading">
@@ -106,10 +111,23 @@ function StoreApp() {
   }
   if (status === 'missing') {
     return (
-      <Waiting
-        slug={slug}
-        status="missing"
-      />
+      <Waiting status="missing" />
+    );
+  }
+  // No shop at all, which is what a fresh install is until someone sets it up.
+  // The set-up form lives on the landing page, so this points there rather than
+  // showing an empty shell with nothing to do in it.
+  if (status === 'none') {
+    return (
+      <div className="landing">
+        <div className="landing-card">
+          <h1>Not set up yet</h1>
+          <p>This install has no shop yet. Set one up and it starts trading straight away.</p>
+          <div className="landing-actions">
+            <a className="btn primary" href="/">Set up this install</a>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -124,21 +142,21 @@ function StoreApp() {
             <ErrorBoundary>
               <Routes>
                 <Route path="/login" element={<Login />} />
-                <Route path="/kds" element={live ? <Guard><KDS /></Guard> : <Waiting slug={slug} status={status} />} />
-                <Route path="/display" element={live ? <Guard roles={['display']}><Display /></Guard> : <Waiting slug={slug} status={status} />} />
+                <Route path="/kds" element={live ? <Guard><KDS /></Guard> : <Waiting status={status} />} />
+                <Route path="/display" element={live ? <Guard roles={['display']}><Display /></Guard> : <Waiting status={status} />} />
                 {/* A suspended shop keeps its pages but every call is refused by
                     the server, so show why rather than an empty shell. */}
                 <Route
                   path="/order/:token"
-                  element={live ? <PublicOrder /> : <Waiting slug={slug} status={status} />}
+                  element={live ? <PublicOrder /> : <Waiting status={status} />}
                 />
                 <Route
                   path="/receipt/:token"
-                  element={live ? <Receipt /> : <Waiting slug={slug} status={status} />}
+                  element={live ? <Receipt /> : <Waiting status={status} />}
                 />
                 <Route path="/*" element={live
                   ? <Guard><Shell /></Guard>
-                  : <Waiting slug={slug} status={status} />} />
+                  : <Waiting status={status} />} />
               </Routes>
             </ErrorBoundary>
             </CookieConsentProvider>
@@ -167,7 +185,7 @@ function BranchBinder({ children }) {
 // here and no "I have an activation key" link: activation is not a thing on this
 // install, and a screen that offers it is offering something the server answers
 // with a 404.
-function Waiting({ slug, contactEmail, status, trialEnded }) {
+function Waiting({ status }) {
   const suspended = status === 'suspended';
   const { user } = useAuth();
   return (
@@ -176,16 +194,16 @@ function Waiting({ slug, contactEmail, status, trialEnded }) {
         <h1>{suspended ? 'This shop is paused' : 'Not set up yet'}</h1>
         <p className="sub">
           {suspended
-            ? `The shop at /${slug} has been paused, so it cannot be used. Nothing has been deleted.`
-            : `There is no shop at /${slug} yet. Open the main site and use the Set up tab to create one.`}
+            ? `This shop has been paused, so it cannot be used. Nothing has been deleted.`
+            : 'There is no shop on this install yet. Open the main site and use the Set up tab to create one.'}
         </p>
         <div className="waiting-actions">
           {suspended
-            ? <a className="btn primary wide" href={`/${slug}/login`}>Sign in</a>
+            ? <a className="btn primary wide" href="/login">Sign in</a>
             : <a className="btn primary wide" href="/">Set up this install</a>}
         </div>
         <div className="activate-foot">
-          {user ? <span className="link muted-as">Signed in as {user.username}</span> : <a className="link" href={`/${slug}/login`}>Sign in</a>}
+          {user ? <span className="link muted-as">Signed in as {user.username}</span> : <a className="link" href="/login">Sign in</a>}
           <a className="link" href="/">Back to the main site</a>
         </div>
       </div>
@@ -200,7 +218,11 @@ export default function App() {
     // change as soon as it is saved.
     <PlatformConfigProvider>
     <Routes>
-      {/* The main page advertises the platform and is where every store signs in. */}
+      {/*
+        The landing page is at /, which is also where the app's catch-all route
+        would otherwise match. Order matters: a router takes the first match, so
+        this has to stay above the store route below or it never renders.
+      */}
       <Route path="/" element={<Landing />} />
       {/* The privacy notice is public and bilingual, because a notice a
           customer cannot read is not a notice. */}
@@ -210,9 +232,35 @@ export default function App() {
       <Route path="/platform" element={<ErrorBoundary><PlatformConsole /></ErrorBoundary>} />
       <Route path="/platform/*" element={<ErrorBoundary><PlatformConsole /></ErrorBoundary>} />
 
-      {/* Everything else belongs to one store. */}
+      {/*
+        The shop lives at the root of the host, not under its own name.
+
+        This is a single-shop install: there is exactly one shop and it is the
+        only one there will ever be. Putting its name in the path made every
+        printed QR code, every bookmark and every address a member of staff had
+        to type carry a word that distinguishes nothing. `/login` is what a
+        person actually types.
+
+        The shop is identified by the server, which publishes the one slug in
+        /api/platform/config. The `/shop/:storeId/*` route below still exists and
+        still works, because QR codes printed before this change carry the name
+        and there are hundreds of them on tables.
+      */}
       <Route
-        path="/:storeId/*"
+        path="/shop/:storeId/*"
+        element={(
+          <StoreProvider>
+            <BrandingProvider>
+              <BranchBinder>
+                <StoreApp />
+              </BranchBinder>
+            </BrandingProvider>
+          </StoreProvider>
+        )}
+      />
+      {/* Everything else is the shop. */}
+      <Route
+        path="/*"
         element={(
           <StoreProvider>
             <BrandingProvider>

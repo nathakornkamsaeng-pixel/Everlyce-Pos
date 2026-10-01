@@ -132,7 +132,7 @@ function Hero({ onStart, onSignIn, needsSetup }) {
         <div className="hero-card" aria-hidden="true">
           <div className="hero-card-top">
             <span className="dot" /><span className="dot" /><span className="dot" />
-            <span className="url">your-server/your-shop</span>
+            <span className="url">your-server/orders</span>
           </div>
           <div className="hero-card-body">
             <div className="line w60" />
@@ -340,7 +340,7 @@ function EntryPanel({ tab, setTab, needsSetup }) {
                 ? notice.body
                 : needsSetup
                   ? 'Name your shop, pick its web address and choose the account you will sign in with. That is the whole setup: no key, no card, no email confirmation, and nothing to wait for.'
-                  : 'Enter your shop ID and account details. Staff can sign in with a PIN at the counter instead.'}
+                  : 'Enter your account details. Staff can sign in with a PIN at the counter instead.'}
             </p>
             {notice && (
               <div className="notice-box">
@@ -349,7 +349,7 @@ function EntryPanel({ tab, setTab, needsSetup }) {
               </div>
             )}
             <ul className="entry-points">
-              <li><CheckCircle2 size={16} /> Your shop ID is the first part of your address</li>
+              <li><CheckCircle2 size={16} /> Your shop is this whole address, so sign in at /login</li>
               <li><CheckCircle2 size={16} /> Your PIN works at the counter</li>
               <li><CheckCircle2 size={16} /> Staff accounts are per shop</li>
             </ul>
@@ -416,7 +416,7 @@ function Setup({ setNotice }) {
       <div className="entry-form">
         <FormOk>Your shop is running.</FormOk>
         <p className="sub">{done.message}</p>
-        <a className="btn primary wide" href={done.signInPath}>Sign in and start taking orders</a>
+        <a className="btn primary wide" href="/login">Sign in and start taking orders</a>
         <p className="fineprint">
           Back up <code>$POS_DATA_DIR/data.json</code> regularly. It is your orders,
           your menu and your customers, and the only copy there is.
@@ -428,12 +428,18 @@ function Setup({ setNotice }) {
   return (
     <form className="entry-form" onSubmit={submit}>
       <Field label="Shop name" value={form.storeName} onChange={set('storeName')} placeholder="Bangkok Coffee" required />
+      {/*
+        The shop is at the root of the host, so the name is not part of an
+        address anyone types. It is still asked for, because it is the shop's own
+        name in the database and on every screen it appears in, and because it
+        keeps the old prefixed URLs working.
+      */}
       <Field
-        label="Shop ID"
+        label="Shop name on the setup screen"
         value={form.storeId}
         onChange={set('storeId')}
         placeholder={slugify('Bangkok Coffee') || 'your-shop'}
-        hint={hint ? `Your address will be /${hint}` : 'Letters, numbers and dashes'}
+        hint={hint ? `Kept as ${hint}, so any older links to this shop still work` : 'Letters, numbers and dashes'}
         spellCheck="false"
       />
       <Field label="Your name" value={form.contactName} onChange={set('contactName')} placeholder="Who is running the till?" />

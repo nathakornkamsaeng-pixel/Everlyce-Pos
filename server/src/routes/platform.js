@@ -210,7 +210,9 @@ router.post('/setup', throttlePublic, async (req, res) => {
   return res.status(201).json({
     store: publicStore(findStoreBySlug(outcome.slug)),
     owner: { username: outcome.username },
-    signInPath: `/${outcome.slug}/login`,
+    // The shop is at the root of the host, so signing in is /login. The prefixed
+    // form still resolves, but it is not the address anyone should be given.
+    signInPath: '/login',
     message: `"${outcome.name}" is ready at /${outcome.slug}. Sign in as ${outcome.username}.`,
   });
 });

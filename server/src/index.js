@@ -66,33 +66,26 @@ async function start() {
   // Before multi-store, every page lived at the root. Bookmarks and printed QR
   // codes still point at /login, /checkout, /order/<token> and so on, so those
   // are redirected into the original store rather than 404-ing.
-  const LEGACY_SEGMENTS = new Set([
-    'login', 'checkout', 'orders', 'tables', 'menu', 'modifiers', 'inventory', 'discounts',
-    'loyalty', 'users', 'qr-codes', 'sessions', 'cash-drawer', 'reports', 'settings',
-    'data', 'translations', 'kds', 'display', 'activate', 'integrations',
-  ]);
+  // A QR or receipt token identifies its own shop, so a guest following an old
+  // link is sent to the right place instead of being guessed at.
+  //
+  // This is the only redirect left. There used to be one that sent /login and
+  // every other page to /{shop}/login, which was how a single-shop install
+  // worked before the app was mounted at the root of the host. Those URLs are now
+  // the real ones, so redirecting them would bounce a guest to a path the app no
+  // longer routes.
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
-    const path = String(req.path || '');
-    if (path === '/' || path.startsWith('/api/')) return next();
-    const segments = path.split('/').filter(Boolean);
-    if (!segments.length) return next();
-    const [first, ...rest] = segments;
-
-    const store = db.defaultStore();
-    if (!store) return next();
-    const target = `/${store.slug}${path}`;
-
-    // A QR or receipt token identifies its own store, so send the guest to the
-    // right one instead of guessing.
-    if ((first === 'order' || first === 'receipt') && rest.length) {
-      const owner = first === 'order'
-        ? storeMiddleware.storeForToken(rest[0])
-        : storeMiddleware.storeForReceiptToken(rest[0]);
-      if (owner) return res.redirect(302, `/${owner.slug}/${first}/${rest[0]}`);
-    }
-    if (LEGACY_SEGMENTS.has(first.toLowerCase()) || first === 'order' || first === 'receipt') {
-      return res.redirect(302, target);
+    const segments = String(req.path || '').split('/').filter(Boolean);
+    if (segments.length !== 2) return next();
+    const [first, token] = segments;
+    if (first !== 'order' && first !== 'receipt') return next();
+    if (!db.defaultStore()) return next();
+    const owner = first === 'order'
+      ? storeMiddleware.storeForToken(token)
+      : storeMiddleware.storeForReceiptToken(token);
+    if (owner && owner.slug !== db.defaultStore().slug) {
+      return res.redirect(302, `/${owner.slug}/${first}/${token}`);
     }
     return next();
   });

@@ -31,7 +31,7 @@ export default function KDS() {
   const { user, logout } = useAuth();
   const { t } = useI18n();
   const { name: brandName } = useBranding();
-  const { slug } = useStore();
+  const { slug, base } = useStore();
   const nav = useNavigate();
 
   const load = useCallback(() => {
@@ -74,7 +74,7 @@ export default function KDS() {
     <div className="pos-scope kds-shell">
       <div className="tk-navbar">
         {!isKdsOnly ? (
-          <button className="tk-back" onClick={() => nav(storePath(slug, '/'))} aria-label={t('Back')}>
+          <button className="tk-back" onClick={() => nav(storePath(slug, '/', base))} aria-label={t('Back')}>
             <ArrowLeft size={22} /><span>{t('Back')}</span>
           </button>
         ) : (

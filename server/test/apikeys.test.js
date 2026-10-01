@@ -235,15 +235,19 @@ async function call(method, p, { body, token, store, key, headers = {} } = {}) {
     publicStat.data.ok !== undefined && publicStat.data.status !== undefined, publicStat.data);
   ok('the integration API is not listed by the catch-all', (await call('GET', '/api/v1/nope', { key: readKeyValue })).status === 404);
 
-  console.log('\n== the integrations page is reachable ==');
-  // Every store page also has a bare /path form that the server redirects into
-  // the default store. A new page missing from that list 404s as a store.
-  const bare = await fetch(`${BASE}/integrations`, { redirect: 'manual' });
-  ok('/integrations redirects into the store instead of 404ing as one',
-    bare.status === 302 && String(bare.headers.get('location') || '').startsWith(`/${STORE}/integrations`),
-    `${bare.status} ${bare.headers.get('location')}`);
-  const bareKeyPage = await fetch(`${BASE}/settings`, { redirect: 'manual' });
-  ok('and the existing store pages still do', bareKeyPage.status === 302, bareKeyPage.status);
+  console.log('\n== the shop pages are reachable at the root of the host ==');
+  // The shop is at /, not /{shop}. These used to be redirected into the store,
+  // which is how a single-shop install worked before the app was mounted at the
+  // root. Redirecting them now would bounce a guest to a path the app no longer
+  // routes, so each one has to be served where it is.
+  for (const page of ['/integrations', '/settings', '/login', '/orders', '/tables', '/checkout', '/kds']) {
+    const r = await fetch(`${BASE}${page}`, { redirect: 'manual' });
+    ok(`${page} is served, not redirected`, r.status === 200, `${r.status} ${r.headers.get('location')}`);
+  }
+  // The prefixed form still works, because every QR code printed before this
+  // change carries the shop's name.
+  const prefixed = await fetch(`${BASE}/shop/${STORE}/login`, { redirect: 'manual' });
+  ok('and the old prefixed form still works for old QR codes', prefixed.status === 200, prefixed.status);
 
   console.log('\n== the privacy notice is readable without signing in ==');
   const anonNotice = await call('GET', '/api/public/privacy-notice');

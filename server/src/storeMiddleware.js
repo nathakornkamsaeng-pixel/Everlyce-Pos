@@ -190,6 +190,17 @@ function publicConfig() {
     // self-hosted install whether or not it has been set up, so the page cannot
     // tell "nothing here yet" from "already running" without it.
     setupRequired: isSelfHost() && storeList().length === 0,
+    // The one shop's address, so a client can answer for itself without being
+    // told which shop it is.
+    //
+    // This is what lets the whole app live at the root of the host: /login
+    // rather than /your-shop/login. The slug used to come from the first path
+    // segment, which meant every printed QR code, every bookmark and every
+    // address a member of staff had to type carried a name that adds nothing on
+    // a single-shop install. It is published here because on this install it is
+    // not a secret: it is the only shop, and the whole point is that the address
+    // should be easy to type.
+    storeSlug: isSelfHost() && storeList().length === 1 ? storeList()[0].slug : null,
     // No plan list. This build has no billing: the plans table in db.js still
     // exists because it carries the limits every shop runs under, but publishing
     // priceTHB to a browser on an install that cannot charge anybody would be a

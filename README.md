@@ -4,7 +4,7 @@ A point of sale for restaurants and cafés that runs on a server you control. On
 shop per install, your own web address, your data on your own disk, and no
 account to create.
 
-- **Shop URL** — your shop lives at `/{shop-id}`, e.g. `/{yourshop}/checkout`
+- **Shop URL** — your shop is the whole host, so sign-in is at `/login`
 - **Main page** — what the software does, and how to install it
 - **No sign-up** — you clone it, you run it, there is nothing to register for
 - **No keys** — start the process and it is trading
@@ -101,6 +101,23 @@ Branches still work, so one shop running several locations is fine.
 The flag is read once at startup, so changing it needs a restart. This build
 expects it on; with it off you get the multi-store code paths, which are not what
 this repository is for.
+
+## Addresses
+
+The shop is at the **root of the host**, not under a name of its own:
+
+```
+https://pos.example.com/login          staff sign in
+https://pos.example.com/orders         the till
+https://pos.example.com/               the front page, and set up on a fresh install
+```
+
+There is no shop name in the URL, because there is only one shop and the name
+distinguished nothing. The server publishes that shop's address in
+`/api/platform/config` and the app asks rather than carrying its own copy.
+
+QR codes and bookmarks that carry the old name still work, at
+`/{shop-name}/...`. The prefix is not required anywhere new.
 
 ## First run
 
