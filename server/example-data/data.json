@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 3,
+  "stores": [
+    {
+      "id": 1,
+      "slug": "myrestaurant",
+      "name": "My Restaurant",
+      "status": "active",
+      "plan": "enterprise",
+      "planMonths": 0,
+      "keyHash": null,
+      "keyIssuedAt": null,
+      "keyExpiresAt": null,
+      "keyUsedAt": null,
+      "keyRevokedAt": null,
+      "contactName": null,
+      "contactEmail": null,
+      "contactPhone": null,
+      "note": "Migrated from the original single-store installation.",
+      "source": "migration",
+      "createdAt": "2026-09-28T08:20:08.714Z",
+      "activatedAt": "2026-09-28T08:20:08.715Z",
+      "suspendedAt": null
+    }
+  ],
+  "platformAdmins": [],
+  "revokedPlatformTokens": [],
+  "storeData": {
+    "1": {
+      "schemaVersion": 3,
+      "settings": {
+        "restaurantName": "My Restaurant",
+        "taxRate": "7",
+        "serviceChargeRate": "10",
+        "currency": "THB",
+        "customerLanguage": "th",
+        "cdsLanguage": "th",
+        "loginLockAttempts": 5,
+        "loginLockWindowMinutes": 15,
+        "loginLockBlockMinutes": 30,
+        "loginLockMaxHours": 24,
+        "promptPayAccount": "",
+        "promptPayAccountType": "phone",
+        "kdsOverdueMinutes": 15,
+        "draftEmptyMinutes": 5,
+        "draftStaleMinutes": 45,
+        "loyaltyEnabled": true,
+        "loyaltyPrompt": "always",
+        "loyaltyPointsPerUnit": 1,
+        "loyaltyPointValue": 0,
+        "loyaltyMinRedeemPoints": 0,
+        "loyaltyRequirePhone": false,
+        "loyaltyAutoRegister": false,
+        "loyaltyAllowSkip": true,
+        "loyaltyMaxCoupons": 0,
+        "loyaltyAllowStacking": true,
+        "loyaltyTierGold": 200,
+        "loyaltyTierVip": 500
+      },
+      "users": [],
+      "tables": [
+        {
+          "id": 1,
+          "name": "T1",
+          "seats": 4,
+          "status": "available"
+        },
+        {
+          "id": 2,
+          "name": "T2",
+          "seats": 2,
+          "status": "available"
+        }
+      ],
+      "categories": [
+        {
+          "id": 1,
+          "name": "Coffee",
+          "sortOrder": 1
+        },
+        {
+          "id": 2,
+          "name": "Tea",
+          "sortOrder": 2
+        }
+      ],
+      "products": [
+        {
+          "id": 1,
+          "categoryId": 1,
+          "name": "Latte",
+          "price": 60,
+          "available": true,
+          "sortOrder": 1,
+          "trackStock": false,
+          "allergens": ""
+        }
+      ],
+      "modifierGroups": [],
+      "modifierOptions": [],
+      "orders": [],
+      "orderItems": [],
+      "payments": [],
+      "promptPayRequests": [],
+      "refunds": [],
+      "discounts": [],
+      "cashSessions": [],
+      "sessions": [],
+      "loyaltyMembers": [],
+      "loyaltyLedger": [],
+      "translations": [],
+      "revokedTokens": [],
+      "securityLocks": [],
+      "stockMovements": [],
+      "nextIds": {
+        "categories": 2,
+        "tables": 2,
+        "products": 1,
+        "users": 1
+      }
+    }
+  },
+  "nextIds": {
+    "stores": 1,
+    "platformAdmins": 0
+  }
+}

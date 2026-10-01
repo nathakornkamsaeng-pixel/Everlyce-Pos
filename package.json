@@ -1,0 +1,24 @@
+{
+  "name": "everlyce-pos",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Everlyce POS - multi-store point of sale for restaurants and cafes",
+  "license": "AGPL-3.0-or-later",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "start": "npm start --workspace server",
+    "dev:server": "npm run dev --workspace server",
+    "dev:web": "npm run dev --workspace web",
+    "build": "npm run build --workspace web",
+    "test": "npm run test:server && npm run test --workspace web",
+    "test:server": "node server/test/multistore.test.js && node server/test/security-multistore.test.js && node server/test/branches.test.js && node server/test/selfhost.test.js && node server/test/pdpa.test.js && node server/test/stat.test.js && node server/test/apikeys.test.js && node server/test/urlsafety.test.js && node server/test/storage.test.js && node server/test/checkout.test.js && node server/test/escpos.test.js && node server/test/profiles.test.js && node server/test/payments.test.js && node server/test/shop-printers.test.js && node server/test/cookie-consent.test.js && node server/test/platform-scope.test.js",
+    "test:postgres": "node server/test/postgres.test.js",
+    "test:all": "npm run test:server && npm test --workspace web && npm run test:postgres"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
+  }
+}

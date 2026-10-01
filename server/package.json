@@ -1,0 +1,19 @@
+{
+  "name": "everlyce-pos-server",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "iconv-lite": "^0.7.3",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.23.0"
+  },
+  "description": "Everlyce POS API server",
+  "license": "AGPL-3.0-or-later"
+}

@@ -1,0 +1,32 @@
+{
+  "name": "everlyce-pos-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check:jsx": "node scripts/check-jsx-imports.mjs",
+    "prebuild": "npm run check:jsx && npm run check:api",
+    "test:render": "node scripts/render-platform.test.mjs",
+    "test": "npm run check:jsx && npm run check:api && npm run test:render && npm run test:settings && npm run test:privacy",
+    "check:api": "node scripts/check-api-helpers.mjs",
+    "test:settings": "node scripts/render-settings.test.mjs",
+    "test:privacy": "node scripts/render-privacy.test.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.462.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8",
+    "jsdom": "^24.1.3"
+  },
+  "description": "Everlyce POS web app",
+  "license": "AGPL-3.0-or-later"
+}

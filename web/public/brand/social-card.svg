@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-labelledby="ec-socialt">
+  <title id="ec-socialt">Everlyce POS</title>
+  <defs>
+    <linearGradient id="ecs" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d3a6b"/>
+      <stop offset="0.55" stop-color="#24518f"/>
+      <stop offset="1" stop-color="#2f7ad4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" rx="0" fill="url(#ecs)"/>
+
+  <g transform="translate(120 187) scale(1.0)">
+  <g fill-opacity="1.0">
+    <rect x="72" y="64" width="112" height="30" rx="15" fill="#ffffff"/>
+    <rect x="72" y="113" width="86" height="30" rx="15" fill="#3ddc97"/>
+    <rect x="72" y="162" width="112" height="30" rx="15" fill="#ffffff"/>
+    <rect x="72" y="64" width="30" height="128" rx="15" fill="#ffffff"/>
+  </g>
+  </g>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, sans-serif">
+    <text x="440" y="300" font-size="104" font-weight="750" letter-spacing="-4" fill="#ffffff">Everlyce</text>
+    <text x="446" y="372" font-size="44" font-weight="700" letter-spacing="14" fill="#3ddc97">POS</text>
+    <text x="446" y="452" font-size="38" font-weight="500" fill="#c8d8f2">Point of sale that runs itself</text>
+  </g>
+</svg>

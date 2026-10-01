@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="theme-color" content="#0f172a" />
+    <!-- The brand files are unversioned paths, so v= forces a fresh copy
+         whenever the artwork changes. Bump it with BRAND_VERSION in
+         web/src/lib/brand-assets.js. -->
+    <link rel="icon" href="/brand/favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="icon" href="/brand/favicon-32.png?v=2" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/brand/favicon-16.png?v=2" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png?v=2" />
+    <meta property="og:title" content="Everlyce POS" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/brand/social-card.png?v=2" />
+    <title>__RESTAURANT_NAME__</title>
+    <script>
+      // The server injects the real restaurant name, so the very first paint
+      // already shows the right brand instead of a placeholder.
+      window.__BRAND__ = "__RESTAURANT_NAME__";
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

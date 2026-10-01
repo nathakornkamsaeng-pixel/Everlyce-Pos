@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build output
+web/dist/
+
+# Live business data. This holds real orders, customer loyalty records with
+# phone numbers and email addresses, the PromptPay account, QR session tokens
+# and password hashes. It must never be committed.
+server/data/
+server/data.json
+*.data.json
+
+# A synthetic sample install with no users, orders, payments, loyalty records or
+# QR tokens. This one is meant to be committed so self-hosters have a starting
+# point; bootstrap creates the first admin account on first run.
+!server/example-data/data.json
+
+# Backups taken during the security and multi-store work
+security-backups/
+multi-store-backups/
+backups/
+*.bak
+
+# Secrets
+*.pem
+*.key
+.env
+.env.*
+jwt-secret
+server/data/jwt-secret
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
