@@ -48,7 +48,7 @@ const OWNED = [
 
 // Where the public source lives. One constant, because the previous build had
 // this URL written out in four places and they had already drifted from the docs.
-const GITHUB_URL = 'https://github.com/nathakornkamsaeng-pixel/pos';
+const GITHUB_URL = 'https://github.com/nathakornkamsaeng-pixel/Everlyce-Pos';
 const README_URL = `${GITHUB_URL}#readme`;
 
 function slugify(value) {

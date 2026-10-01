@@ -28,8 +28,8 @@ sessions and receipts in Thai and English.
 ## Install
 
 ```bash
-git clone https://github.com/nathakornkamsaeng-pixel/pos.git
-cd pos
+git clone https://github.com/nathakornkamsaeng-pixel/Everlyce-Pos.git
+cd Everlyce-Pos
 npm install
 npm run build
 ```
