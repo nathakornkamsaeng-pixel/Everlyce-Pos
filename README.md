@@ -21,7 +21,9 @@ sessions and receipts in Thai and English.
 
 ## Requirements
 
-- Node.js 20 or newer
+- Node.js 22.13 or newer (see `.nvmrc`). Node 22 is required because the optional SQLite engine uses the built-in `node:sqlite` module, which Node 20 does not ship. The default JSON engine runs on the same runtime.
+
+`npm run dev:web` uses Vite 6. Vite 5 depended on esbuild 0.21, which had a development-server path-traversal advisory (fixed in esbuild 0.25). Vite 6.2 and later depend on esbuild 0.25 or newer. Production `npm run build` does not expose that dev server.
 - nginx (or any reverse proxy) with TLS
 - ~200 MB of disk for the app, plus your data
 
@@ -71,7 +73,7 @@ sudo systemctl enable --now pos-api
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `PORT` | `8080` | Port the API listens on. It binds to `127.0.0.1` only, so it must sit behind a proxy. |
-| `POS_DATA_DIR` | `server/data` | Where `data.json` and the JWT secret live. Back this up. |
+| `POS_DATA_DIR` | `server/data` | Where the snapshot and the JWT secret live. Back this up. With the default engine that file is `data.json`. With SQLite it is `data.sqlite`. |
 | `POS_DEFAULT_STORE_SLUG` | `myrestaurant` | Slug used when a fresh install creates its first store. |
 | `POS_ALLOWED_HOSTS` | `pos.example.com,localhost,127.0.0.1` | Comma-separated `Host` allowlist. Requests with any other host get a `421`. |
 | `POS_CONTACT_EMAIL` | `you@example.com` | Your own address, shown to your staff on screens that need a contact. |
@@ -80,6 +82,7 @@ sudo systemctl enable --now pos-api
 | `POS_BOOTSTRAP_PASSWORD` | random | Set it, or a random one is written to `data/bootstrap-admin.txt`. |
 | `POS_CORS_ORIGIN` | *(empty)* | Leave empty unless you front the API from another origin. |
 | `POS_SELF_HOST` | *(empty)* | Set to `1`. This is the only mode this build has. See below. |
+| `POS_STORAGE` | `json` | `json` (default) or `sqlite`. `postgres` is refused. See Storage. |
 | `POS_SMTP_HOST` | *(empty)* | *(hosted builds only)* Outgoing mail server. Unused in this build. |
 
 ## Single-store self-hosted mode
@@ -100,7 +103,25 @@ Branches still work, so one shop running several locations is fine.
 
 The flag is read once at startup, so changing it needs a restart. This build
 expects it on; with it off you get the multi-store code paths, which are not what
-this repository is for.
+this repository is for. Those paths stay in the tree so the test suite can prove
+the flag actually changes behaviour. They are not a second product.
+
+## What is not part of this build
+
+`server/src/trial.js`, `server/src/subscription.js` and `server/src/planLimits.js`
+are the hosted billing surface: trials, plan changes, and caps on staff and
+menu size. With `POS_SELF_HOST=1`:
+
+- a trial is never enforced (`expireTrials` returns 0)
+- plan caps are not applied
+- asking to buy or change a plan answers `404`
+
+A shop can still read `GET /api/subscription`. That read is how the tests check
+the shop is on the uncapped plan. Nothing in that response is a bill.
+
+Turn the flag off and those modules behave as they did for a hosted install.
+Do not do that on a shop's own server: there is nobody to sell a plan to, and
+a leftover trial deadline would pause the only shop.
 
 ## Addresses
 
@@ -211,6 +232,33 @@ instead, or move the tables first.
 From the API, the active branch travels on `X-POS-Branch`, and `?branchId=<id>`
 filters a list. `branchId=all` covers every branch, which is the default.
 
+## Storage
+
+`POS_STORAGE` chooses the engine. The default is `json`. Nothing switches to
+SQLite on its own.
+
+| Value | What it does |
+| --- | --- |
+| `json` (default) | One `data.json`. A write goes to a temp file, is fsynced, then renamed over the live file. Previous generations sit in `backups/`. |
+| `sqlite` | One `data.sqlite`. The whole snapshot is a single row. `COMMIT` uses `journal_mode=DELETE` and `synchronous=FULL`, so it returns only after the new page is on disk. A value JSON cannot store is rejected before the transaction, and the previous row is copied into the same `backups/` window. |
+| `postgres` | Refused. The schema and `postgres.test.js` exist. The server does not open a connection. |
+
+`libsql` is accepted as another name for the local SQLite file. It is not a remote database.
+
+Node prints an experimental warning the first time `node:sqlite` loads. That warning is the module's own status. The adapter uses it so the engine does not add a native dependency. If `node:sqlite` cannot be loaded, startup throws `storage_engine_unavailable` and does not write JSON instead.
+
+Move an existing shop once, after a backup:
+
+```bash
+node server/scripts/migrate-json-to-sqlite.js --dir /opt/pos/server/data
+```
+
+The script copies `data.json` into `backups/` before it reads it, writes `data.sqlite`, and leaves `data.json` where it is. It refuses to overwrite a database that already has a snapshot unless you pass `--replace`. Then set `POS_STORAGE=sqlite` and restart. To go back, set `POS_STORAGE=json` and restart. The JSON file was not deleted.
+
+```
+Environment=POS_STORAGE=sqlite
+```
+
 ## Security
 
 - Every JWT is bound to the store it was issued for, so a valid token from one
@@ -220,7 +268,9 @@ filters a list. `branchId=all` covers every branch, which is the default.
 - API keys are hashed, single use, expiring and compared in constant time.
 - Sign-in locks per account *and* IP, with backoff up to 24 hours.
 - The API binds to `127.0.0.1`, checks the `Host` header, and is meant to sit
-  behind a proxy.
+  behind a proxy. On the Everlyce box, nginx is the only process that should
+  face the network. If the name is proxied through Cloudflare, lock the origin
+  so only Cloudflare can reach nginx. See [docs/ops/origin-lock.md](docs/ops/origin-lock.md).
 - Browser tokens live in `sessionStorage`, not `localStorage`.
 - New passwords must be 12 characters or longer; admin accounts cannot use a
   PIN alone.
@@ -251,7 +301,8 @@ and audit history. `stat.test.js` covers the health report and its auth.
 `apikeys.test.js` covers the integration API, key scopes, cross-store
 isolation and revocation. `urlsafety.test.js` covers external URL validation
 and the in-process sign-in caps. `storage.test.js` is the storage-engine
-conformance suite, `checkout.test.js` unit-tests the money rules with no server
+conformance suite, `sqlite.test.js` covers the SQLite round trip and the JSON
+migration, `checkout.test.js` unit-tests the money rules with no server
 at all, and `postgres.test.js` runs against a real PostgreSQL
 (`npm run test:postgres`; `npm run test:all` runs everything).
 
@@ -327,6 +378,10 @@ against a physical unit. Paper width and columns are solid. The code page that
 means Thai is firmware dependent and is left unset on purpose: a wrong guess
 prints mojibake, and a confident wrong answer is worse than no answer.
 
+How to check a unit and set `quirks.verified` is in
+[docs/ops/printers.md](docs/ops/printers.md). `verified` stays `false` in this
+repository until that check has actually been done.
+
 ### Payment methods
 
 `Settings → Payment methods`. The shop's own list, in the order its staff meet
@@ -350,8 +405,8 @@ till asks what a shop can accept and never has to know which provider answered.
 | --- | --- | --- |
 | `cash` | yes | nothing |
 | `thaiqr` | yes | a Thai bank account, PromptPay number, tax ID or billing ID |
-| `opn` | configured only | an Opn merchant account and live keys |
-| `stripe` | configured only | a Stripe account and live keys |
+| `opn` | no | not implemented. A saved key does not turn it on |
+| `stripe` | no | not implemented. A saved key does not turn it on |
 
 **Thai QR is the one that matters most.** Every Thai banking app already reads
 it, so a shop can take money with the account it has today, with no contract and
@@ -373,11 +428,18 @@ shop's bank feed, and every reconciliation becomes a manual guess on amount and
 timestamp. The reference is derived from the order number on the server, so a
 client cannot put an arbitrary value into a payment of its own.
 
-Card gateways are present but **not switched on**. A gateway that claims to be
-ready without live credentials fails at the counter, which is the worst moment
-to discover it, so `capabilities()` reports them as unavailable with the reason
-attached until real keys are configured, and charging through one refuses rather
-than quietly falling back to cash.
+Card gateways are present in the registry and **not switched on**. Saving an
+Opn or Stripe key does not make `capabilities()` report them as available. The
+reason is `not switched on yet`, with or without a key, and `createPayment`
+throws that rather than charging. The payment-method screen does not offer
+them as something the till can add. They stay that way until a real charge and
+a webhook exist.
+
+Thai QR does not settle itself either. The customer's bank app pays the shop's
+account. The cashier marks the order paid after seeing the money, and can
+attach a bank reference and a short slip note. Both are optional. Both are
+written to the activity log as `settlement=cashier-confirmed`. There is no bank
+API behind that button.
 
 Gateway credentials are never returned by any endpoint. They are replaced with a
 `*Configured` boolean on the way out, for admins as well as cashiers: an admin
@@ -403,10 +465,26 @@ production one.
 
 ## PostgreSQL
 
+Not the production engine. `POS_STORAGE=postgres` throws
+`storage_engine_unavailable` at startup and does not open a connection, even
+when `DATABASE_URL` or `POS_DATABASE_URL` is set. The default remains `json`.
+SQLite is the other engine that actually runs.
+
 `server/src/storage/schema.sql` is the relational schema: 16 tables, 47 indexes,
-13 row level security policies. It is the target engine, chosen over a file store
-because the file engine has one writer and its write cost grows with the size of
-the install.
+13 row level security policies. It is applied only by `postgres.test.js`,
+against a database you point that test at. It was chosen as a target because
+the file engine has one writer and its write cost grows with the size of the
+install.
+
+What is still missing before postgres can be selected:
+
+- an adapter with the same `load` / `commit` / `describe` contract, or a real
+  relational mapping the routes can use
+- `FORCE ROW LEVEL SECURITY` on the tenant tables (policies exist and are
+  enabled, and they are not forced, so a table owner still bypasses them)
+- a connection string the server process actually opens
+
+Until those three exist, the honest behaviour is the refusal.
 
 Three decisions that are expensive to change later:
 
@@ -469,7 +547,10 @@ Every seeded row carries `quirks.verified: false` and where the claim came from.
 That is deliberate: the model names and the 80/58mm split are solid, and the
 column counts follow the usual 48/32 at 203dpi, but nobody has measured these
 against physical units yet. A row is a claim someone can check and correct,
-which is the point of storing it as data.
+which is the point of storing it as data. The procedure is
+[docs/ops/printers.md](docs/ops/printers.md). `genericProfile()` is the same
+claim for a model that is not in the list: 80mm, 48 columns, `verified: false`,
+no code page number.
 
 **No profile claims a Thai code page number.** Which `ESC t` value means Thai
 is firmware dependent, so guessing one would print mojibake on most of these.
@@ -545,4 +626,8 @@ rows", which is reconnaissance and nothing else.
 
 ## Licence
 
-GNU Affero General Public License v3.0 or later. The full text is in the `LICENSE` file at the root of the repository.
+SPDX-License-Identifier: `AGPL-3.0-or-later`
+
+GNU Affero General Public License v3.0 or later. The same SPDX identifier is set
+in the root, server, and web `package.json` files and in the notice at the top
+of `LICENSE`. The text below that notice is the licence itself, unchanged.

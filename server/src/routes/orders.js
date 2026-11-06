@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const express = require('express');
-const { coll, nextId, now, touch, transaction, recalculateSession, tierFor } = require('../db');
+const { coll, nextId, now, touch, transaction, getRepo, recalculateSession, tierFor } = require('../db');
 const { ROUND2, itemLineTotal, parsedModifiers, recompute } = require('../orderTotals');
 const { log, EVENTS } = require('../activityLog');
 const checkout = require('../services/checkout');
@@ -182,6 +182,10 @@ function clearLoyaltyOnOrder(order) {
 // the request-shaped wrapper: it supplies the repository, the clock and the
 // collaborators, and it is what the routes below call.
 function applyPayment(order, body, req, options = {}) {
+  // The repository is created when the document loads. The route used to call
+  // it by a name that was never imported, so every payment through this
+  // wrapper threw before a single baht was recorded.
+  const repo = getRepo();
   const result = repo.transaction(() => checkout.settle({
     repo,
     order,
@@ -355,11 +359,25 @@ router.post('/promptpay', requireRole('admin', 'cashier'), (req, res) => {
   res.status(201).json(promptPayRequestDto(request));
 });
 
+// Optional cashier notes. A Thai QR payment is not confirmed by a bank API.
+// The till marks it paid only because a person says the money arrived, and
+// these fields are what that person saw on the banking app.
+function settlementField(value, max, label) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' && typeof value !== 'number') throw new ValidationError(`${label} must be text`);
+  const text = String(value).replace(/[\u0000-\u001F\u007F]/g, '').trim();
+  if (text.length > max) throw new ValidationError(`${label} is too long`);
+  return text || null;
+}
+
 router.post('/promptpay/:id/confirm', requireRole('admin', 'cashier'), (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
   const request = coll('promptPayRequests').find((candidate) => Number(candidate.id) === Number(req.params.id));
   if (!request) return res.status(404).json({ detail: 'PromptPay request not found' });
   if (request.status === 'confirmed') return res.json(promptPayRequestDto(request));
   if (request.status !== 'pending') throw new ValidationError('PromptPay request is not pending');
+  const slip = settlementField(body.slip, 120, 'Slip note');
+  const bankReference = settlementField(body.bankReference, 40, 'Bank reference');
   const orders = request.orderIds.map((id) => {
     const order = getOrder(id);
     if (!order) throw new ValidationError('Order not found', 404);
@@ -378,13 +396,26 @@ router.post('/promptpay/:id/confirm', requireRole('admin', 'cashier'), (req, res
     candidateRequest.status = 'confirmed';
     candidateRequest.confirmedBy = req.user.id;
     candidateRequest.confirmedAt = now();
+    // Honest about what this is: a person at the till, not a notification from
+    // the bank. The slip and reference are optional and may both be empty.
+    candidateRequest.settlement = 'cashier-confirmed';
+    candidateRequest.slip = slip;
+    candidateRequest.bankReference = bankReference;
   });
   const confirmedRequest = coll('promptPayRequests').find((candidate) => Number(candidate.id) === Number(request.id));
   const confirmedOrders = confirmedRequest.orderIds.map((id) => getOrder(id));
   for (const order of confirmedOrders) {
     log(EVENTS.ORDER_PAID, req, { order: order.orderNumber, total: order.total, method: 'promptpay', member: order.memberId || null });
   }
-  log(EVENTS.PROMPTPAY_CONFIRM, req, { request: confirmedRequest.id, amount: confirmedRequest.amount, orders: confirmedOrders.length });
+  log(EVENTS.PROMPTPAY_CONFIRM, req, {
+    request: confirmedRequest.id,
+    amount: confirmedRequest.amount,
+    orders: confirmedOrders.length,
+    markedPaid: true,
+    settlement: 'cashier-confirmed',
+    bankReference: confirmedRequest.bankReference,
+    slip: confirmedRequest.slip,
+  });
   res.json(promptPayRequestDto(confirmedRequest));
 });
 

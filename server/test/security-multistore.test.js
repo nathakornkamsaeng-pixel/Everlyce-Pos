@@ -1,5 +1,6 @@
 // Confirms the security hardening still works now that data is per store.
 const assert = require('assert');
+const fs = require('fs');
 const net = require('net');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -141,7 +142,7 @@ async function call(method, p, { body, token, store = STORE, headers = {} } = {}
   }
 
   function throwsPayment(label, fn) {
-    try { fn(); ok(label, false, 'did not throw'); } catch (e) { ok(label, /not yet switched on/.test(e.message), e.message); }
+    try { fn(); ok(label, false, 'did not throw'); } catch (e) { ok(label, /not switched on yet/.test(e.message), e.message); }
   }
 
   console.log('\n== the till can ask what it can accept ==');
@@ -201,6 +202,32 @@ async function call(method, p, { body, token, store = STORE, headers = {} } = {}
   ok('the order is held as awaiting payment, not marked paid', qr.data.status === 'pending', qr.data.status);
   ok('no gateway key is anywhere in the response', !/opnSecretKey|stripeSecretKey/.test(JSON.stringify(qr.data)), Object.keys(qr.data).join(','));
 
+  const tooLong = await call('POST', `/api/orders/promptpay/${qr.data.id}/confirm`, {
+    token: adminToken,
+    body: { slip: 'x'.repeat(121) },
+  });
+  ok('a slip note past the limit is refused', tooLong.status === 400, tooLong.status);
+  const stillPending = await call('GET', `/api/orders/${orderId}`, { token: adminToken });
+  ok('and the order is still unpaid', stillPending.data.paymentStatus === 'pending', stillPending.data.paymentStatus);
+
+  const confirmed = await call('POST', `/api/orders/promptpay/${qr.data.id}/confirm`, {
+    token: adminToken,
+    body: { bankReference: 'REF9', slip: 'SCB 1234' },
+  });
+  ok('the cashier can mark the transfer paid', confirmed.status === 200, confirmed.data || confirmed.status);
+  ok('the order is paid by promptpay', confirmed.data.orders[0].paymentStatus === 'paid' && confirmed.data.orders[0].paymentMethod === 'promptpay', confirmed.data.orders && confirmed.data.orders[0]);
+  ok('the slip and the bank reference are kept on the request',
+    confirmed.data.slip === 'SCB 1234' && confirmed.data.bankReference === 'REF9', confirmed.data);
+  ok('settlement is recorded as the cashier, not a bank', confirmed.data.settlement === 'cashier-confirmed', confirmed.data.settlement);
+  const againConfirm = await call('POST', `/api/orders/promptpay/${qr.data.id}/confirm`, { token: adminToken, body: {} });
+  ok('confirming twice does not clear the slip', againConfirm.status === 200 && againConfirm.data.slip === 'SCB 1234', againConfirm.data && againConfirm.data.slip);
+  await new Promise((r) => setTimeout(r, 400));
+  let audit = '';
+  try { audit = fs.readFileSync(path.join(DATA_DIR, 'logs', 'activity.log'), 'utf8'); } catch (e) { audit = ''; }
+  ok('the activity log records the confirm, the slip, and that the cashier marked it paid',
+    /promptpay-confirm/.test(audit) && /bankReference=REF9/.test(audit) && /slip="SCB 1234"/.test(audit) && /settlement=cashier-confirmed/.test(audit) && /markedPaid=true/.test(audit),
+    audit.split('\n').filter((l) => /promptpay-confirm/.test(l)).slice(-1)[0]);
+
   const qrMissing = capsAdmin.data.providers.find((p) => p.id === 'thaiqr');
   ok('Thai QR is unavailable until an account is set', qrMissing.available === false, qrMissing);
   ok('and says so rather than failing at the counter', /PromptPay/.test(qrMissing.reason), qrMissing.reason);
@@ -211,8 +238,9 @@ async function call(method, p, { body, token, store = STORE, headers = {} } = {}
   ok('Thai QR is offered once an account is set', qrProvider.available === true, qrProvider);
   ok('with no leftover complaint', qrProvider.reason === null, qrProvider.reason);
   ok('a transfer is not treated as settled on the spot', qrProvider.settledSynchronously === false);
-  ok('Opn is configured now, and says its transport is not yet verified',
-    capsAdmin.data.providers.find((p) => p.id === 'opn').available === true);
+  const opn = capsAdmin.data.providers.find((p) => p.id === 'opn');
+  ok('Opn is not offered as ready, even with a key saved',
+    opn && opn.available === false && opn.switchedOn === false && opn.reason === 'not switched on yet', opn);
   throwsPayment('charging through Opn refuses rather than pretending', () => {
     const { createPayment } = require('../src/payments/registry');
     return createPayment('opn', { orders: [{ id: 1, orderNumber: 'A-1', total: 10 }], settings: { opnSecretKey: FAKE_OPN } });

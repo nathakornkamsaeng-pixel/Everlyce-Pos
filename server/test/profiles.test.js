@@ -110,6 +110,7 @@ console.log('\n== a model nobody catalogued still prints ==');
   ok('it uses the generic 80mm defaults', buf.length > 20, buf.length);
   ok('and still gets a cut and a drawer', buf.toString('hex').endsWith('1d564200'));
   ok('the generic profile is 48 columns, like the 80mm class', genericProfile().columns === 48);
+  ok('and it does not claim to have been checked on a real unit', genericProfile().quirks.verified === false);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

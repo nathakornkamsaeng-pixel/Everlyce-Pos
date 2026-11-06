@@ -144,6 +144,12 @@ async function waitUp() {
   ok('with no activation step demanded at sign-in', !login.data.activationRequired, login.data && login.data.activationRequired);
   const T = login.data.token;
   ok('and the shop API works immediately', (await call('GET', '/api/settings', { token: T, store: 'siamkitchen' })).status === 200);
+  const sub = await call('GET', '/api/subscription', { token: T, store: 'siamkitchen' });
+  ok('the shop can read its subscription record', sub.status === 200, sub.status);
+  const asked = await call('POST', '/api/subscription/request', {
+    token: T, store: 'siamkitchen', body: { plan: 'professional', months: 12 },
+  });
+  ok('buying a plan is refused on a self-hosted install', asked.status === 404 && asked.data && asked.data.code === 'self_host', asked);
   ok('tables are readable', (await call('GET', '/api/tables', { token: T, store: 'siamkitchen' })).status === 200);
 
   console.log('\n== the shop is at the root of the host ==');

@@ -35,14 +35,16 @@ console.log('\n== the engine is chosen by config ==');
   const dir = scratch();
   const a = adapterIn(dir);
   ok('the default engine is the file engine', a.name === 'json', a.name);
-  ok('POS_STORAGE=sqlite is refused rather than silently falling back', (() => {
-    try { createAdapter({ engine: 'sqlite' }); return false; } catch (e) { return /not implemented/.test(e.message); }
-  })());
-  ok('the refusal names the setting to use instead', (() => {
-    try { createAdapter({ engine: 'sqlite' }); return false; } catch (e) { return /POS_STORAGE=json/.test(e.message); }
+  const sqlitePicked = createAdapter({ engine: 'sqlite', dir });
+  ok('POS_STORAGE=sqlite selects sqlite and does not point at the JSON file',
+    sqlitePicked.name === 'sqlite' && sqlitePicked.dataFile.endsWith(`${path.sep}data.sqlite`), sqlitePicked.dataFile);
+  ok('POS_STORAGE=postgres is refused rather than silently falling back', (() => {
+    try { createAdapter({ engine: 'postgres', dir }); return false; } catch (e) {
+      return e.code === 'storage_engine_unavailable' && /POS_STORAGE=json/.test(e.message) && /not available/.test(e.message);
+    }
   })());
   ok('an unknown engine fails loudly', (() => {
-    try { createAdapter({ engine: 'postgres' }); return false; } catch (e) { return /Unknown storage engine/.test(e.message); }
+    try { createAdapter({ engine: 'mysql' }); return false; } catch (e) { return /Unknown storage engine/.test(e.message); }
   })());
   ok('"file" is accepted as a name for the same engine', createAdapter({ engine: 'file', dir }).name === 'json');
 }

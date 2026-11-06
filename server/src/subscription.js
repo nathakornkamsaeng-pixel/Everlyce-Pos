@@ -1,5 +1,9 @@
 // What a store's subscription is, and what it may do next.
 //
+// Hosted billing. POS_SELF_HOST installs refuse plan-change requests in the
+// route and do not enforce these caps. The view below still answers a GET,
+// which is what the self-host tests read to prove the shop is uncapped.
+//
 // A shop's plan is not something the till needs to reason about, but somebody
 // has to answer three questions honestly, and getting any of them wrong has a
 // cost:

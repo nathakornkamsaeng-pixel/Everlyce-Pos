@@ -244,7 +244,15 @@ function genericProfile(model = 'generic-escpos-80mm') {
     supports_image: true,
     supports_colour: false,
     max_char_width_px: 512,
-    quirks: {},
+    // verified stays false. This is a fallback for a model nobody has measured.
+    // Paper width and columns are the usual 80mm / 48-column guess. How to
+    // check a real unit and flip quirks.verified is in docs/ops/printers.md.
+    // Do not set a codePage here: which ESC t number means Thai is firmware
+    // dependent, and a wrong number prints mojibake.
+    quirks: {
+      verified: false,
+      source: 'generic fallback, not measured against a physical unit',
+    },
   };
 }
 
