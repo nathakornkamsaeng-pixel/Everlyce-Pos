@@ -1,5 +1,11 @@
 -- Everlyce POS on PostgreSQL.
 --
+-- This file is not applied by the running server. POS_STORAGE=postgres is
+-- refused. The statements below are the target schema, exercised by
+-- server/test/postgres.test.js against a database you point that test at.
+-- They are not the production storage engine. The live engines are JSON
+-- (the default) and SQLite (POS_STORAGE=sqlite).
+--
 -- Why this exists: the file engine rewrites the whole document on every write,
 -- so it has one writer and grows with the size of the install. A shop doing
 -- real trade needs many concurrent writers and a database that does not care
