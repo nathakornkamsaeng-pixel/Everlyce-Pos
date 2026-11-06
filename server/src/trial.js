@@ -1,5 +1,10 @@
 // Ending free trials.
 //
+// Hosted billing, kept so a process with POS_SELF_HOST off still pauses an
+// expired trial. With the flag on every function here is a no-op. This
+// repository's product is the self-hosted install; see the README section
+// "What is not part of this build".
+//
 // A trial that is never enforced is not a trial, it is a free shop. So the
 // clock is swept rather than checked on request: a shop whose week is up is
 // paused whether anyone looks at it or not, and the data is kept so paying

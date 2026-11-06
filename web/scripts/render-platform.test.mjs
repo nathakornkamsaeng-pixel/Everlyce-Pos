@@ -3,8 +3,8 @@
 // did in the browser, and used to show up only as a blank white page.
 import fs from 'node:fs';
 import path from 'node:path';
-import { JSDOM } from '/opt/pos/node_modules/jsdom/lib/api.js';
-import { build } from '/opt/pos/node_modules/esbuild/lib/main.js';
+import { JSDOM } from 'jsdom';
+import { build } from 'esbuild';
 
 // jsdom cannot load ES modules, so the app is bundled as a classic script
 // first. This renders the real component tree, not a stand-in.

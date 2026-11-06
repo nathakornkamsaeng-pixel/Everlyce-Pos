@@ -2,8 +2,11 @@
   "name": "everlyce-pos",
   "private": true,
   "version": "1.0.0",
-  "description": "Everlyce POS - multi-store point of sale for restaurants and cafes",
+  "description": "Everlyce POS — single-shop self-hosted point of sale for restaurants and cafes",
   "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "workspaces": [
     "server",
     "web"

@@ -4,8 +4,8 @@
 // panel that never renders.
 import fs from 'node:fs';
 import path from 'node:path';
-import { JSDOM } from '/opt/pos/node_modules/jsdom/lib/api.js';
-import { build } from '/opt/pos/node_modules/esbuild/lib/main.js';
+import { JSDOM } from 'jsdom';
+import { build } from 'esbuild';
 
 const BUNDLE = path.join('/tmp', `pos-settings-${process.pid}.js`);
 await build({

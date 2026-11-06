@@ -7,6 +7,19 @@ const { subscriptionFor, validateRequest, SubscriptionError } = require('../subs
 const router = express.Router();
 router.use(requireAuth);
 
+// Read at request time. The flag is process-wide, but a test that boots the
+// server with it off must still reach the hosted request path below.
+function selfHost() {
+  return ['1', 'true', 'yes', 'on'].includes(String(process.env.POS_SELF_HOST || '').toLowerCase());
+}
+
+function refuseBilling(res) {
+  return res.status(404).json({
+    detail: 'This install is self-hosted. There is no plan to buy and no trial to extend.',
+    code: 'self_host',
+  });
+}
+
 // How many months a renewal defaults to, and what the tab offers.
 const MONTH_CHOICES = [1, 3, 6, 12];
 
@@ -36,6 +49,7 @@ router.get('/', (req, res) => {
  * platform to fulfil.
  */
 router.post('/request', requireRole('admin'), (req, res) => {
+  if (selfHost()) return refuseBilling(res);
   const body = req.body && typeof req.body === 'object' ? req.body : {};
 
   // One at a time. Two pending requests means the platform has to guess which
@@ -102,6 +116,7 @@ router.post('/request', requireRole('admin'), (req, res) => {
  * request is history and taking it back would leave the two disagreeing.
  */
 router.delete('/request/:id', requireRole('admin'), (req, res) => {
+  if (selfHost()) return refuseBilling(res);
   const request = coll('planRequests').find((r) => Number(r.id) === Number(req.params.id));
   if (!request) throw new SubscriptionError('That request does not exist', 'not_found', 404);
   if (request.storeId !== req.store.id) throw new SubscriptionError('That request belongs to another store', 'not_yours', 403);
