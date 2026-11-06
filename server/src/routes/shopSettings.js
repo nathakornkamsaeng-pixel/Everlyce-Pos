@@ -31,13 +31,16 @@ const KNOWN = new Set(['cash', 'thaiqr', 'opn', 'stripe']);
 // Offered when the shop has the credentials. Availability is decided by the
 // provider registry, not by the shop asserting it, so a method cannot be shown
 // as available when it would fail at the counter.
-function availableMethods() {
-  return registry.providers.map((p) => ({
+function availableMethods(settings) {
+  return registry.capabilities(settings).map((p) => ({
     id: p.id,
     label: p.label,
     methods: p.methods,
-    settledSynchronously: p.id === 'cash',
-    display: p.id === 'thaiqr' ? 'qr' : p.id === 'cash' ? 'none' : 'gateway',
+    settledSynchronously: p.settledSynchronously,
+    display: p.display,
+    available: p.available,
+    switchedOn: p.switchedOn,
+    reason: p.reason,
   }));
 }
 
@@ -75,7 +78,7 @@ router.get('/methods', requireRole('admin'), (req, res) => {
   const settings = coll('settings') || {};
   res.json({
     methods: shopMethods(settings),
-    available: availableMethods(),
+    available: availableMethods(settings),
   });
 });
 
@@ -104,7 +107,7 @@ router.put('/methods', requireRole('admin'), (req, res) => {
   settings.paymentMethods = out;
   require('../db').touch();
   log(EVENTS.SETTINGS_SAVE, req, { scope: 'paymentMethods', count: out.length });
-  res.json({ methods: shopMethods(settings), available: availableMethods() });
+  res.json({ methods: shopMethods(settings), available: availableMethods(settings) });
 });
 
 module.exports = router;

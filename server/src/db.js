@@ -1016,6 +1016,11 @@ function migrate() {
 // from then on. Everything below still talks to `state` for the migration
 // itself, which is the one place that legitimately has to see the whole
 // document rather than one store's view of it.
+function getRepo() {
+  if (!repo) throw new Error('Data has not been loaded yet');
+  return repo;
+}
+
 function bindRepo() {
   repo = createRepo({
     getDoc: () => state,
@@ -1107,7 +1112,7 @@ function cleanupGhosts() {
 }
 
 module.exports = {
-  load, touch, transaction, coll, nextId, now, DATA_DIR, DATA_FILE, BACKUP_FILE, storageInfo,
+  load, touch, transaction, getRepo, coll, nextId, now, DATA_DIR, DATA_FILE, BACKUP_FILE, storageInfo,
   migrate, cleanupGhosts, recalculateSession, releaseStockForOrder, netOrderTotal, tierFor,
   revokePlatformJti,
   // multi-store surface

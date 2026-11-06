@@ -12,11 +12,10 @@
 //   opn      Opn Payments. Needs a merchant account and live keys.
 //   stripe   Cards. Needs an account and live keys.
 //
-// The last two are deliberately configured but not enabled until real
-// credentials are present. A provider that claims to be ready without them
-// would fail at the counter, which is the worst possible moment to discover it,
-// so capabilities() reports them as unavailable with the reason attached rather
-// than hiding them or pretending.
+// Opn and Stripe are not implemented. A saved key does not switch them on:
+// capabilities() keeps them unavailable with the reason "not switched on yet",
+// and createPayment throws rather than charging. Cash and Thai QR are the
+// providers a till can actually use.
 
 const { buildThaiQr, validThaiTaxId, PaymentError } = require('./thaiqr');
 
@@ -90,33 +89,33 @@ const providers = [
     id: 'opn',
     label: 'Opn Payments',
     methods: ['card', 'promptpay', 'truemoney'],
-    // Live merchant keys are required. Nothing here is enabled without them.
+    // Present so a key can be stored for later. Not a payment the till can take.
+    implemented: false,
     configured(settings) {
       return Boolean(settings && settings.opnSecretKey);
     },
-    unavailableReason(settings) {
-      if (!settings || !settings.opnSecretKey) return 'Add your Opn public and secret key in Settings';
-      return null;
+    unavailableReason() {
+      return 'not switched on yet';
     },
-    requires: ['An Opn merchant account', 'Live secret key'],
+    requires: ['An Opn merchant account', 'Live secret key', 'A charge and webhook that do not exist in this build yet'],
     createPayment() {
-      throw new PaymentError('Opn is configured for cards but not yet switched on. It needs live merchant keys verified against the Opn API before it can charge a card.');
+      throw new PaymentError('not switched on yet');
     },
   },
   {
     id: 'stripe',
     label: 'Cards by Stripe',
     methods: ['card'],
+    implemented: false,
     configured(settings) {
       return Boolean(settings && settings.stripeSecretKey);
     },
-    unavailableReason(settings) {
-      if (!settings || !settings.stripeSecretKey) return 'Add your Stripe secret key in Settings';
-      return null;
+    unavailableReason() {
+      return 'not switched on yet';
     },
-    requires: ['A Stripe account', 'Live secret key'],
+    requires: ['A Stripe account', 'Live secret key', 'A charge and webhook that do not exist in this build yet'],
     createPayment() {
-      throw new PaymentError('Stripe is configured for cards but not yet switched on. It needs a live key verified against the Stripe API before it can charge a card.');
+      throw new PaymentError('not switched on yet');
     },
   },
 ];
@@ -137,15 +136,20 @@ function get(id) {
  */
 function capabilities(settings) {
   return providers.map((provider) => {
-    const ok = provider.configured(settings);
+    const switchedOn = provider.implemented !== false;
+    const keysPresent = provider.configured(settings);
+    // A key is not an implementation. Opn and Stripe stay unavailable, with
+    // the same reason whether or not a secret has been saved.
+    const available = switchedOn && keysPresent;
     return {
       id: provider.id,
       label: provider.label,
       methods: provider.methods,
-      available: ok,
+      available,
+      switchedOn,
       // Present only when unavailable, so the till has something concrete to
       // show rather than a switch that quietly does nothing.
-      reason: ok ? null : provider.unavailableReason(settings),
+      reason: available ? null : provider.unavailableReason(settings),
       requires: provider.requires,
       // Settled in one step at the counter, or needing a later confirmation.
       settledSynchronously: provider.id === 'cash',
@@ -164,6 +168,9 @@ function capabilities(settings) {
 function createPayment(providerId, args) {
   const provider = get(providerId);
   if (!provider) throw new PaymentError('Unknown payment method');
+  if (provider.implemented === false) {
+    throw new PaymentError('not switched on yet');
+  }
   if (!provider.configured(args && args.settings)) {
     throw new PaymentError(provider.unavailableReason(args && args.settings));
   }

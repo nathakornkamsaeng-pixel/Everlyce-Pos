@@ -105,15 +105,16 @@ ok('Thai QR covers PromptPay, QR and transfer', ['promptpay', 'qr', 'transfer'].
 ok('cash settles at the counter', bare.find((p) => p.id === 'cash').settledSynchronously === true);
 ok('a transfer does not settle on its own', qrBare.settledSynchronously === false);
 
-console.log('\n== card gateways are configured but not claimed to be ready ==');
+console.log('\n== card gateways are not switched on, even when a key is saved ==');
 for (const id of ['opn', 'stripe']) {
-  const p = registry.capabilities({ [id === 'opn' ? 'opnSecretKey' : 'stripeSecretKey']: 'sk_live_x' }).find((x) => x.id === id);
-  ok(`${id} reports available once a key is set`, p.available === true, p);
+  const key = id === 'opn' ? 'opnSecretKey' : 'stripeSecretKey';
+  const p = registry.capabilities({ [key]: 'sk_live_x' }).find((x) => x.id === id);
+  ok(`${id} stays unavailable when a key is set`, p.available === false && p.switchedOn === false, p);
+  ok(`${id} says it is not switched on yet`, p.reason === 'not switched on yet', p.reason);
   const off = registry.capabilities({}).find((x) => x.id === id);
-  ok(`${id} is unavailable with no key, and says why`, off.available === false && /Settings/.test(off.reason), off.reason);
-  // The point of failing closed: a half-built gateway must not quietly take
-  // the customer's money.
-  throws(`${id} refuses to charge when its transport is not verified`, () => registry.createPayment(id, { orders: [{ id: 1, orderNumber: 'A-1', total: 100 }], settings: { [id === 'opn' ? 'opnSecretKey' : 'stripeSecretKey']: 'sk_live_x' } }));
+  ok(`${id} is unavailable with no key, and does not claim a key would turn it on`,
+    off.available === false && off.reason === 'not switched on yet', off.reason);
+  throws(`${id} refuses to charge`, () => registry.createPayment(id, { orders: [{ id: 1, orderNumber: 'A-1', total: 100 }], settings: { [key]: 'sk_live_x' } }));
   ok(`${id} says what it needs`, registry.capabilities({}).find((x) => x.id === id).requires.length > 0);
 }
 

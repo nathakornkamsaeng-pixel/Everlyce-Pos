@@ -317,7 +317,7 @@ export default function Settings() {
         <div className="card mt" style={{ maxWidth: 680 }}>
           <div className="section-title mb0" style={{ marginTop: 0 }}>{t('Card payments')}</div>
           <div className="muted" style={{ fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>
-            {t('Card gateways are not switched on yet. Store a key here and the till will show the method as available once it has been verified against the provider.')}
+            {t('Card gateways are not switched on yet. Saving a key does not turn them on, and the till will not offer them. They stay unavailable until a real charge and webhook exist.')}
           </div>
           <div className="form-grid mt">
             <div className="field">

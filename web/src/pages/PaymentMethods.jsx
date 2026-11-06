@@ -81,7 +81,7 @@ export default function PaymentMethods() {
   }
 
   const active = methods.filter((m) => m.id !== 'cash');
-  const off = available.filter((p) => p.id !== 'cash' && !methods.some((m) => m.id === p.id));
+  const off = available.filter((p) => p.id !== 'cash' && p.switchedOn !== false && !methods.some((m) => m.id === p.id));
 
   return (
     <div className="card mt" style={{ maxWidth: 720 }}>
@@ -103,6 +103,8 @@ export default function PaymentMethods() {
               <strong>{m.label}{m.custom ? <span className="badge blue" style={{ marginLeft: 6 }}>{t('yours')}</span> : null}</strong>
               {m.id === 'cash' ? (
                 <span className="muted">{t('Always available. Cash is not a setting.')}</span>
+              ) : available.find((p) => p.id === m.id && p.switchedOn === false) ? (
+                <span className="muted">{t('Not switched on yet. The till will not take this.')}</span>
               ) : (
                 <select
                   value={m.kind}

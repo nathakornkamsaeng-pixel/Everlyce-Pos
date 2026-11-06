@@ -32,6 +32,8 @@ export default function Checkout() {
   const ticketTotalRef = useRef(0);
   const [tableOrders, setTableOrders] = useState([]);
   const [promptPayRequest, setPromptPayRequest] = useState(null);
+  const [promptPaySlip, setPromptPaySlip] = useState('');
+  const [promptPayBankRef, setPromptPayBankRef] = useState('');
   const [orderDetail, setOrderDetail] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [syncState, setSyncState] = useState('idle');
@@ -331,7 +333,12 @@ export default function Checkout() {
     if (!requestId || busy) return;
     setBusy(true);
     try {
-      const result = await post(`/orders/promptpay/${requestId}/confirm`, {});
+      const result = await post(`/orders/promptpay/${requestId}/confirm`, {
+        bankReference: promptPayBankRef.trim() || undefined,
+        slip: promptPaySlip.trim() || undefined,
+      });
+      setPromptPaySlip('');
+      setPromptPayBankRef('');
       setPromptPayRequest(null);
       clearTicket();
       setCart([]);
@@ -624,7 +631,15 @@ export default function Checkout() {
               {pendingPromptPayId ? (
                 <div className="promptpay-pending">
                   <strong>PromptPay</strong>
-                  <span>{t('QR sent to customer display. Confirm after the customer has paid.')}</span>
+                  <span>{t('QR sent to customer display. Confirm after you have seen the money. This does not ask the bank.')}</span>
+                  <div className="field" style={{ marginTop: 8 }}>
+                    <label>{t('Bank reference (optional)')}</label>
+                    <input value={promptPayBankRef} onChange={(e) => setPromptPayBankRef(e.target.value)} maxLength={40} disabled={busy} />
+                  </div>
+                  <div className="field">
+                    <label>{t('Slip note (optional)')}</label>
+                    <input value={promptPaySlip} onChange={(e) => setPromptPaySlip(e.target.value)} maxLength={120} disabled={busy} />
+                  </div>
                   <button className="btn success" onClick={() => confirmPromptPay(pendingPromptPayId)} disabled={busy}>
                     {busy ? t('Processing…') : t('Confirm PromptPay received')}
                   </button>

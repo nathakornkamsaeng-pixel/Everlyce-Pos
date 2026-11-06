@@ -18,6 +18,8 @@ export default function Orders() {
   const [open, setOpen] = useState(null);
   const [payMethod, setPayMethod] = useState('cash');
   const [tip, setTip] = useState('');
+  const [promptPaySlip, setPromptPaySlip] = useState('');
+  const [promptPayBankRef, setPromptPayBankRef] = useState('');
   const toast = useToast();
 
   function load() {
@@ -34,7 +36,10 @@ export default function Orders() {
   async function confirmPromptPay() {
     if (!open?.promptPayRequestId) return;
     try {
-      const result = await post(`/orders/promptpay/${open.promptPayRequestId}/confirm`, {});
+      const result = await post(`/orders/promptpay/${open.promptPayRequestId}/confirm`, {
+        bankReference: promptPayBankRef.trim() || undefined,
+        slip: promptPaySlip.trim() || undefined,
+      });
       toast(t('PromptPay payment confirmed'), 'ok');
       setOpen(null);
       load();
@@ -98,7 +103,7 @@ export default function Orders() {
               <tbody>
                 {orders.length === 0 && <tr><td colSpan={7} className="muted">{t('No orders.')}</td></tr>}
                 {orders.map((o) => (
-                  <tr key={o.id} className="clickable" onClick={() => setOpen(o)}>
+                  <tr key={o.id} className="clickable" onClick={() => { setPromptPaySlip(''); setPromptPayBankRef(''); setOpen(o); }}>
                     <td className="mono">{o.orderNumber}</td>
                     <td>{t(o.orderType === 'dine_in' ? 'Dine-in' : o.orderType)} {o.tableName && `· ${t(o.tableName)}`}</td>
                     <td>{o.customerName || '—'}</td>
@@ -106,8 +111,8 @@ export default function Orders() {
                     <td>{o.paymentStatus === 'paid' ? <span className="badge green">{t('paid')} · {t(o.paymentMethod)}</span> : o.paymentStatus === 'voided' ? <span className="badge red">{t('voided')}</span> : o.promptPayRequestId ? <span className="badge amber">PromptPay · {t('pending')}</span> : <span className="badge amber">{t('unpaid')}</span>}</td>
                     <td className="num"><strong>{fmtMoney(o.total)}</strong></td>
                     <td className="num">
-                      <button className="btn sm" onClick={(e) => { e.stopPropagation(); setOpen(o); }}>{t('View')}</button>
-                      {isActive(o) && <button className="btn sm success" onClick={(e) => { e.stopPropagation(); setOpen(o); }}>{o.promptPayRequestId ? t('Confirm') : t('Pay')}</button>}
+                      <button className="btn sm" onClick={(e) => { e.stopPropagation(); setPromptPaySlip(''); setPromptPayBankRef(''); setOpen(o); }}>{t('View')}</button>
+                      {isActive(o) && <button className="btn sm success" onClick={(e) => { e.stopPropagation(); setPromptPaySlip(''); setPromptPayBankRef(''); setOpen(o); }}>{o.promptPayRequestId ? t('Confirm') : t('Pay')}</button>}
                     </td>
                   </tr>
                 ))}
@@ -149,6 +154,21 @@ export default function Orders() {
             {open.tip > 0 && <div className="spread"><span className="muted">{t('Tip')}</span><span>{fmtMoney(open.tip)}</span></div>}
             <div className="spread" style={{ fontWeight: 700, fontSize: 16, marginTop: 6 }}><span>{t('Total')}</span><span>{fmtMoney(open.total)}</span></div>
           </div>
+          {isActive(open) && open.promptPayRequestId && (
+            <div className="mt">
+              <p className="muted" style={{ fontSize: 12.5 }}>
+                {t('Confirming records that you saw the money. It does not ask the bank. A slip or reference is optional and is written to the activity log.')}
+              </p>
+              <div className="field">
+                <label>{t('Bank reference (optional)')}</label>
+                <input value={promptPayBankRef} onChange={(e) => setPromptPayBankRef(e.target.value)} maxLength={40} />
+              </div>
+              <div className="field">
+                <label>{t('Slip note (optional)')}</label>
+                <input value={promptPaySlip} onChange={(e) => setPromptPaySlip(e.target.value)} maxLength={120} />
+              </div>
+            </div>
+          )}
           {isActive(open) && !open.promptPayRequestId && (
             <div className="row mt" style={{ justifyContent: 'flex-end' }}>
               {['cash', 'card', 'other', 'promptpay'].map((m) => (
