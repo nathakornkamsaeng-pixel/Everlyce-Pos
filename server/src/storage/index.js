@@ -177,20 +177,198 @@ function jsonFileAdapter(options = {}) {
   };
 }
 
+// Write one generation of the rolling backup window from a snapshot string.
+// The JSON engine copies the file it is about to replace. SQLite has no such
+// file: the previous generation is the row it is about to overwrite, so the
+// same names and the same trim are applied to that text instead.
+function remember(backupDir, text, stamp) {
+  ensureDir(backupDir);
+  let target = path.join(backupDir, `data-${stamp}.json`);
+  let n = 1;
+  while (fs.existsSync(target)) {
+    target = path.join(backupDir, `data-${stamp}-${n}.json`);
+    n += 1;
+  }
+  fs.writeFileSync(target, text, { encoding: 'utf8', mode: 0o600 });
+  try { fs.chmodSync(target, 0o600); } catch (e) { /* best effort */ }
+  const kept = fs.readdirSync(backupDir)
+    .filter((name) => /^data-\d{8}-\d{6}-\d{3}(-\d+)?\.json$/.test(name))
+    .sort();
+  while (kept.length > KEEP) {
+    const oldest = kept.shift();
+    try { fs.unlinkSync(path.join(backupDir, oldest)); } catch (e) { /* best effort */ }
+  }
+  return target;
+}
+
+function backupWindow(backupDir) {
+  const names = [];
+  try {
+    for (const n of fs.readdirSync(backupDir)) if (/^data-\d{8}-\d{6}-\d{3}/.test(n)) names.push(n);
+  } catch (e) { /* no backup directory yet */ }
+  names.sort();
+  let newest = null;
+  const newestName = names[names.length - 1];
+  if (newestName) {
+    try {
+      const st = fs.statSync(path.join(backupDir, newestName));
+      newest = { name: newestName, sizeBytes: st.size, modifiedAt: new Date(st.mtimeMs).toISOString() };
+    } catch (e) { /* vanished under us */ }
+  }
+  return { dir: backupDir, count: names.length, keep: KEEP, newest };
+}
+
 // ------------------------------------------------------------------ SQLite
 
-// Deliberately not implemented yet, and it refuses loudly rather than silently
-// falling back to the file engine. A half-built database backend that quietly
-// wrote to the wrong place is how a shop loses a day's orders.
+// One snapshot row in a local database file. The contract matches the JSON
+// engine: load() returns the document or null, commit() replaces it entirely
+// or leaves the previous row untouched.
 //
-// The shape it has to satisfy is fixed by jsonFileAdapter above, so there is
-// no argument to be had about what SQLite would need to do.
-function sqliteAdapter() {
+// Durability: journal_mode=DELETE and synchronous=FULL. COMMIT does not return
+// until the new page is on disk. The snapshot is a single row, so a reader
+// sees the whole old document or the whole new one. A value JSON cannot
+// represent is rejected before the transaction starts. The previous row is
+// copied into the same rolling backup window the file engine uses, and then
+// the row is replaced inside the transaction.
+//
+// This uses Node's built-in node:sqlite (DatabaseSync). It is still marked
+// experimental by Node and prints a warning the first time it loads. It is
+// used anyway so the engine does not add a native dependency. Node 20 has no
+// such module; POS_STORAGE=sqlite fails closed there instead of writing JSON.
+//
+// `libsql` is accepted as a name for this same local file. It is not a remote
+// libSQL / Turso connection.
+
+const SQLITE_HANDLES = new Map();
+
+function loadNodeSqlite() {
+  try {
+    return require('node:sqlite');
+  } catch (e) {
+    throw Object.assign(
+      new Error(
+        'POS_STORAGE=sqlite needs Node.js node:sqlite (DatabaseSync), which ships in Node 22.13 and later. '
+        + `This process is ${process.version}. Upgrade Node, or set POS_STORAGE=json. `
+        + 'The JSON file was not used as a fallback.',
+      ),
+      { code: 'storage_engine_unavailable' },
+    );
+  }
+}
+
+function openSqlite(file) {
+  const cached = SQLITE_HANDLES.get(file);
+  if (cached) return cached;
+  const { DatabaseSync } = loadNodeSqlite();
+  ensureDir(path.dirname(file));
+  const db = new DatabaseSync(file);
+  db.exec(`
+    PRAGMA journal_mode = DELETE;
+    PRAGMA synchronous = FULL;
+    PRAGMA busy_timeout = 5000;
+    CREATE TABLE IF NOT EXISTS snapshot (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      body TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+  try { fs.chmodSync(file, 0o600); } catch (e) { /* best effort */ }
+  SQLITE_HANDLES.set(file, db);
+  return db;
+}
+
+function sqliteAdapter(options = {}) {
+  // Fail at startup if this Node cannot open the engine. A till that boots
+  // and then discovers the setting on the first order has already taken orders
+  // it cannot save.
+  loadNodeSqlite();
+  const now = options.clock || (() => new Date());
+  const dir = options.dir || DATA_DIR;
+  const file = options.file || path.join(dir, 'data.sqlite');
+  const backupDir = options.backupDir || path.join(dir, 'backups');
+
+  function db() {
+    return openSqlite(file);
+  }
+
+  return {
+    name: 'sqlite',
+    dataDir: dir,
+    dataFile: file,
+    backupFile: path.join(backupDir, 'latest.json'),
+    backupDir,
+
+    load() {
+      const row = db().prepare('SELECT body FROM snapshot WHERE id = 1').get();
+      if (!row || row.body == null || !String(row.body).trim()) return null;
+      return JSON.parse(row.body);
+    },
+
+    commit(snapshot, previous) {
+      // Serialise first. A circular reference throws here, with the row that
+      // is already stored left exactly as it was.
+      const text = JSON.stringify(snapshot);
+      const database = db();
+      const row = database.prepare('SELECT body FROM snapshot WHERE id = 1').get();
+      if (row && row.body) {
+        try { remember(backupDir, row.body, stampFor(now())); } catch (e) { /* the replace below is the durable step */ }
+      }
+      database.exec('BEGIN IMMEDIATE');
+      try {
+        database.prepare(
+          'INSERT OR REPLACE INTO snapshot (id, body, updated_at) VALUES (1, ?, ?)',
+        ).run(text, now().toISOString());
+        database.exec('COMMIT');
+      } catch (e) {
+        try { database.exec('ROLLBACK'); } catch (e2) { /* already rolled back */ }
+        throw e;
+      }
+      try { fs.chmodSync(file, 0o600); } catch (e) { /* best effort */ }
+      // `previous` is part of the contract. The row just replaced is the
+      // previous generation; the argument is not consulted, matching the file
+      // engine, which rotates the file on disk rather than the object handed in.
+      void previous;
+    },
+
+    describe() {
+      let sizeBytes = 0;
+      let modifiedAt = null;
+      try {
+        const s = fs.statSync(file);
+        sizeBytes = s.size;
+        modifiedAt = new Date(s.mtimeMs).toISOString();
+      } catch (e) { /* nothing written yet */ }
+      return {
+        engine: 'sqlite',
+        dataFile: file,
+        backupDir,
+        sizeBytes,
+        modifiedAt,
+        backups: backupWindow(backupDir),
+        // Stated so a health report does not have to guess what "committed" means.
+        durability: 'single-row snapshot, journal_mode=DELETE, synchronous=FULL',
+      };
+    },
+  };
+}
+
+// --------------------------------------------------------------- PostgreSQL
+
+// schema.sql and postgres.test.js describe the target. They are not the live
+// path. Selecting postgres must not write the JSON file, and it must not open
+// a connection that half-applies the schema.
+function postgresAdapter() {
+  const configured = Boolean(process.env.DATABASE_URL || process.env.POS_DATABASE_URL);
   throw Object.assign(
     new Error(
-      'The SQLite storage engine is selected but not implemented. '
-      + 'It is being built behind the same contract as the file engine; '
-      + 'set POS_STORAGE=json until it is available.',
+      'POS_STORAGE=postgres is not available. '
+      + 'server/src/storage/schema.sql and server/test/postgres.test.js exist, and they are not what the server writes. '
+      + (configured
+        ? 'A connection string is set and it is ignored. '
+        : 'No connection string is read. ')
+      + 'Still to build before this engine can be selected: an adapter on the same load/commit/describe contract (or a real relational one), '
+      + 'FORCE ROW LEVEL SECURITY on the tenant tables, and a connection string the server actually opens. '
+      + 'Set POS_STORAGE=json (the default) or POS_STORAGE=sqlite.',
     ),
     { code: 'storage_engine_unavailable' },
   );
@@ -200,7 +378,11 @@ function createAdapter(options = {}) {
   const engine = String(options.engine || process.env.POS_STORAGE || 'json').toLowerCase();
   if (engine === 'json' || engine === 'file') return jsonFileAdapter(options);
   if (engine === 'sqlite' || engine === 'libsql') return sqliteAdapter(options);
+  if (engine === 'postgres' || engine === 'postgresql') return postgresAdapter(options);
   throw new Error(`Unknown storage engine: ${engine}`);
 }
 
-module.exports = { createAdapter, jsonFileAdapter, sqliteAdapter, DATA_DIR, KEEP };
+module.exports = {
+  createAdapter, jsonFileAdapter, sqliteAdapter, postgresAdapter,
+  DATA_DIR, KEEP, rotate, stampFor, remember,
+};
